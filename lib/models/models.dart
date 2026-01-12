@@ -1,29 +1,81 @@
 class Profile {
-  final String birthDate; // YYYY-MM-DD
-  final String shichen;   // one of shichenList
-  final bool locked;
+  /// YYYY-MM-DD
+  final String birthDate;
 
-  Profile({required this.birthDate, required this.shichen, required this.locked});
+  /// One of shichenList
+  final String shichen;
+
+  /// When the fate coordinate was first bound (epoch ms).
+  final int boundAt;
+
+  /// How many edits are left for fate coordinate. Default: 1.
+  /// Rule: within 24h after first bind, can edit at most once.
+  final int fateEditsLeft;
+
+  /// Optional notification mailbox (never shown to the peer unless both sides agree in the future).
+  final String notifyEmail;
+
+  /// Last time the notifyEmail was updated (epoch ms). 0 means never set.
+  final int emailUpdatedAt;
+
+  const Profile({
+    required this.birthDate,
+    required this.shichen,
+    required this.boundAt,
+    required this.fateEditsLeft,
+    required this.notifyEmail,
+    required this.emailUpdatedAt,
+  });
 
   Map<String, dynamic> toJson() => {
-    'birthDate': birthDate,
-    'shichen': shichen,
-    'locked': locked,
-  };
+        'birthDate': birthDate,
+        'shichen': shichen,
+        'boundAt': boundAt,
+        'fateEditsLeft': fateEditsLeft,
+        'notifyEmail': notifyEmail,
+        'emailUpdatedAt': emailUpdatedAt,
+      };
 
   static Profile? fromJson(Map<String, dynamic>? json) {
     if (json == null) return null;
+    final birthDate = (json['birthDate'] ?? '').toString();
+    final shichen = (json['shichen'] ?? '').toString();
+
+    // Backward compatible defaults
+    final boundAt = (json['boundAt'] is int)
+        ? (json['boundAt'] as int)
+        : (json['boundAt'] is String)
+            ? int.tryParse(json['boundAt'] as String) ?? 0
+            : 0;
+
+    final fateEditsLeft = (json['fateEditsLeft'] is int)
+        ? (json['fateEditsLeft'] as int)
+        : (json['fateEditsLeft'] is String)
+            ? int.tryParse(json['fateEditsLeft'] as String) ?? 0
+            : (json['locked'] == true ? 0 : 1); // old field: locked
+
+    final notifyEmail = (json['notifyEmail'] ?? '').toString();
+
+    final emailUpdatedAt = (json['emailUpdatedAt'] is int)
+        ? (json['emailUpdatedAt'] as int)
+        : (json['emailUpdatedAt'] is String)
+            ? int.tryParse(json['emailUpdatedAt'] as String) ?? 0
+            : 0;
+
     return Profile(
-      birthDate: (json['birthDate'] ?? '').toString(),
-      shichen: (json['shichen'] ?? '').toString(),
-      locked: (json['locked'] ?? false) == true,
+      birthDate: birthDate,
+      shichen: shichen,
+      boundAt: boundAt,
+      fateEditsLeft: fateEditsLeft,
+      notifyEmail: notifyEmail,
+      emailUpdatedAt: emailUpdatedAt,
     );
   }
 }
 
 class StampWallet {
   final int stamps;
-  StampWallet(this.stamps);
+  const StampWallet(this.stamps);
 
   Map<String, dynamic> toJson() => {'stamps': stamps};
   static StampWallet fromJson(Map<String, dynamic> json) =>
@@ -35,13 +87,13 @@ class MailRequest {
   final String fromUserId;
   final String toUserId;
   final String fateKey; // birthDate + shichen
-  final String status;  // pending/accepted/rejected/expired
-  final int createdAt;  // epoch ms
+  final String status; // pending/accepted/rejected/expired
+  final int createdAt; // epoch ms
   final String templateState;
   final String templatePace;
   final String extraLine;
 
-  MailRequest({
+  const MailRequest({
     required this.id,
     required this.fromUserId,
     required this.toUserId,
@@ -54,28 +106,28 @@ class MailRequest {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'fromUserId': fromUserId,
-    'toUserId': toUserId,
-    'fateKey': fateKey,
-    'status': status,
-    'createdAt': createdAt,
-    'templateState': templateState,
-    'templatePace': templatePace,
-    'extraLine': extraLine,
-  };
+        'id': id,
+        'fromUserId': fromUserId,
+        'toUserId': toUserId,
+        'fateKey': fateKey,
+        'status': status,
+        'createdAt': createdAt,
+        'templateState': templateState,
+        'templatePace': templatePace,
+        'extraLine': extraLine,
+      };
 
   static MailRequest fromJson(Map<String, dynamic> json) => MailRequest(
-    id: (json['id'] ?? '').toString(),
-    fromUserId: (json['fromUserId'] ?? '').toString(),
-    toUserId: (json['toUserId'] ?? '').toString(),
-    fateKey: (json['fateKey'] ?? '').toString(),
-    status: (json['status'] ?? 'pending').toString(),
-    createdAt: (json['createdAt'] ?? 0) as int,
-    templateState: (json['templateState'] ?? '').toString(),
-    templatePace: (json['templatePace'] ?? '').toString(),
-    extraLine: (json['extraLine'] ?? '').toString(),
-  );
+        id: (json['id'] ?? '').toString(),
+        fromUserId: (json['fromUserId'] ?? '').toString(),
+        toUserId: (json['toUserId'] ?? '').toString(),
+        fateKey: (json['fateKey'] ?? '').toString(),
+        status: (json['status'] ?? 'pending').toString(),
+        createdAt: (json['createdAt'] ?? 0) as int,
+        templateState: (json['templateState'] ?? '').toString(),
+        templatePace: (json['templatePace'] ?? '').toString(),
+        extraLine: (json['extraLine'] ?? '').toString(),
+      );
 }
 
 class MailItem {
@@ -86,7 +138,7 @@ class MailItem {
   final String body;
   final int createdAt; // epoch ms
 
-  MailItem({
+  const MailItem({
     required this.id,
     required this.requestId,
     required this.fromUserId,
@@ -96,20 +148,20 @@ class MailItem {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'requestId': requestId,
-    'fromUserId': fromUserId,
-    'toUserId': toUserId,
-    'body': body,
-    'createdAt': createdAt,
-  };
+        'id': id,
+        'requestId': requestId,
+        'fromUserId': fromUserId,
+        'toUserId': toUserId,
+        'body': body,
+        'createdAt': createdAt,
+      };
 
   static MailItem fromJson(Map<String, dynamic> json) => MailItem(
-    id: (json['id'] ?? '').toString(),
-    requestId: (json['requestId'] ?? '').toString(),
-    fromUserId: (json['fromUserId'] ?? '').toString(),
-    toUserId: (json['toUserId'] ?? '').toString(),
-    body: (json['body'] ?? '').toString(),
-    createdAt: (json['createdAt'] ?? 0) as int,
-  );
+        id: (json['id'] ?? '').toString(),
+        requestId: (json['requestId'] ?? '').toString(),
+        fromUserId: (json['fromUserId'] ?? '').toString(),
+        toUserId: (json['toUserId'] ?? '').toString(),
+        body: (json['body'] ?? '').toString(),
+        createdAt: (json['createdAt'] ?? 0) as int,
+      );
 }

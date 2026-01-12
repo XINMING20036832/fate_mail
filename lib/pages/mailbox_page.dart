@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/local_store.dart';
 import '../models/models.dart';
-import '../core/utils.dart';
+import '../widgets/fate_background.dart';
+import '../widgets/fate_card.dart';
 
 class MailboxPage extends StatefulWidget {
   const MailboxPage({super.key});
@@ -12,10 +12,8 @@ class MailboxPage extends StatefulWidget {
 }
 
 class _MailboxPageState extends State<MailboxPage> {
-  List<MailItem> _items = [];
+  List<LetterRequest> _items = [];
   bool _loading = true;
-  final _ctrl = TextEditingController();
-  String _msg = '';
 
   @override
   void initState() {
@@ -24,91 +22,100 @@ class _MailboxPageState extends State<MailboxPage> {
   }
 
   Future<void> _load() async {
-    final items = await LocalStore.loadMailbox();
+    final list = await LocalStore.loadMailbox();
     setState(() {
-      _items = items;
+      _items = list;
       _loading = false;
     });
   }
 
-  Future<void> _send() async {
-    final txt = _ctrl.text.trim();
-    if (txt.isEmpty) return;
-    if (containsExternalContact(txt)) {
-      setState(() => _msg = '信箱里暂时也禁止外联信息（手机号/链接/微信）。');
-      return;
-    }
-    final uid = await LocalStore.getOrCreateUserId();
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    final mail = MailItem(
-      id: now.toString(),
-      requestId: _items.isEmpty ? 'unknown' : _items.first.requestId,
-      fromUserId: uid,
-      toUserId: 'peer',
-      body: txt,
-      createdAt: now,
-    );
-    final next = [mail, ..._items];
-    await LocalStore.saveMailbox(next);
-    _ctrl.clear();
-    setState(() {
-      _items = next;
-      _msg = '';
-    });
+  Future<void> _delete(LetterRequest req) async {
+    await LocalStore.removeMailbox(req.id);
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已删除')));
   }
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  void _open(LetterRequest req) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(req.title),
+          content: SingleChildScrollView(child: Text(req.body)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('我的信箱（慢信）')),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Text(_msg, style: const TextStyle(color: Colors.red)),
-            Expanded(
-              child: ListView.builder(
-                reverse: false,
-                itemCount: _items.length,
-                itemBuilder: (_, i) {
-                  final m = _items[i];
-                  final dt = DateTime.fromMillisecondsSinceEpoch(m.createdAt);
-                  return Card(
-                    child: ListTile(
-                      title: Text(DateFormat('yyyy-MM-dd HH:mm').format(dt)),
-                      subtitle: Text(m.body),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Row(
+      appBar: AppBar(title: const Text('信箱')),
+      body: FateBackground(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _ctrl,
-                    decoration: const InputDecoration(
-                      hintText: '写一封慢信（不要留微信/手机号/链接）',
-                    ),
-                    minLines: 1,
-                    maxLines: 3,
+                FateCard(
+                  child: Text(
+                    '这里保存你收到并确认过的信。\n它们不会出现在任何搜索里，只属于你。',
+                    style: TextStyle(color: scheme.onSurface.withOpacity(0.75), height: 1.3),
                   ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: _send, child: const Text('发送')),
+                const SizedBox(height: 12),
+                if (_items.isEmpty)
+                  const FateCard(child: Text('信箱还是空的。')),
+                for (final r in _items) ...[
+                  FateCard(
+                    child: InkWell(
+                      onTap: () => _open(r),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  r.title,
+                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: '删除',
+                                onPressed: () => _delete(r),
+                                icon: const Icon(Icons.delete_outline),
+                              )
+                            ],
+                          ),
+                          Text(
+                            r.body,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: scheme.onSurface.withOpacity(0.78), height: 1.25),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            r.createdAt,
+                            style: TextStyle(fontSize: 12, color: scheme.onSurface.withOpacity(0.6)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ]
               ],
             ),
-            const SizedBox(height: 6),
-            const Text('提示：MVP用“慢信”节奏，减少即时社交焦虑。', style: TextStyle(fontSize: 12)),
-          ],
+          ),
         ),
       ),
     );
