@@ -1,0 +1,55 @@
+﻿name: build-android-apk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate android/local.properties
+        shell: bash
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          FLUTTER_BIN="$(command -v flutter)"
+          FLUTTER_SDK="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          echo "sdk.dir=$SDK" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_SDK" >> android/local.properties
+          cat android/local.properties
+
+      - name: Build debug APK
+        run: flutter build apk --debug 2>&1 | tee gradle-build.log
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: gradle-build.log

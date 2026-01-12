@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/local.properties
+local.properties
+./build/
+/.dart_tool/
+app-debug.apk
+*.apk
+build/
