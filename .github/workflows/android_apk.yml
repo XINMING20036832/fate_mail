@@ -36,11 +36,21 @@ jobs:
           echo "flutter.sdk=$FLUTTER_SDK" >> android/local.properties
           cat android/local.properties
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      # 关键：不用 flutter build 直接跑 gradle，并输出 --stacktrace --info 到日志
+      - name: Gradle assembleDebug with stacktrace
+        shell: bash
+        run: |
+          cd android
+          ./gradlew --no-daemon --stacktrace --info :app:assembleDebug 2>&1 | tee ../gradle-build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload Gradle Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: gradle-build.log
