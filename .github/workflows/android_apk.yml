@@ -26,6 +26,16 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Generate android/local.properties
+        shell: bash
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          FLUTTER_BIN="$(command -v flutter)"
+          FLUTTER_SDK="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          echo "sdk.dir=$SDK" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_SDK" >> android/local.properties
+          cat android/local.properties
+
       - name: Build debug APK
         run: flutter build apk --debug
 
