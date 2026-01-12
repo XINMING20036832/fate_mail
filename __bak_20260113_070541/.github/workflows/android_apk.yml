@@ -22,11 +22,16 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Ensure gradle props
+        run: |
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" >> android/gradle.properties
+
       - name: Build release APK
         run: flutter build apk --release 2>&1 | tee build-log.txt
 
       - name: Upload APK
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
