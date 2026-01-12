@@ -6,7 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,6 +22,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Setup Gradle (no wrapper needed)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+
       - name: Pub get
         run: flutter pub get
 
@@ -36,12 +40,11 @@ jobs:
           echo "flutter.sdk=$FLUTTER_SDK" >> android/local.properties
           cat android/local.properties
 
-      # 关键：不用 flutter build 直接跑 gradle，并输出 --stacktrace --info 到日志
       - name: Gradle assembleDebug with stacktrace
         shell: bash
         run: |
           cd android
-          ./gradlew --no-daemon --stacktrace --info :app:assembleDebug 2>&1 | tee ../gradle-build.log
+          gradle --no-daemon --stacktrace --info :app:assembleDebug 2>&1 | tee ../gradle-build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
