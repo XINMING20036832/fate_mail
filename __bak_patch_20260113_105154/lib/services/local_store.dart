@@ -23,28 +23,10 @@ class LocalStore {
     final sp = await SharedPreferences.getInstance();
     final raw = sp.getString(_kProfile);
     if (raw == null) return null;
-
-    final p = Profile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    if (p == null) return null;
-
-    // 自动根据时间锁定“命运坐标”（24h 过期 或 已改过一次）
-    final now = DateTime.now().millisecondsSinceEpoch;
-    bool shouldLock = p.locked;
-    if (p.boundAtMs > 0) {
-      final expired = (now - p.boundAtMs) > 24 * 60 * 60 * 1000;
-      final usedUp = p.coordEditCount >= 1;
-      shouldLock = expired || usedUp;
-    }
-
-    if (shouldLock != p.locked) {
-      final next = p.copyWith(locked: shouldLock);
-      await sp.setString(_kProfile, jsonEncode(next.toJson()));
-      return next;
-    }
-    return p;
+    return Profile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
   }
 
-  static Future<void> saveProfile(Profile profile) async {(Profile profile) async {
+  static Future<void> saveProfile(Profile profile) async {
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kProfile, jsonEncode(profile.toJson()));
   }
@@ -101,13 +83,39 @@ class LocalStore {
     await _saveList(_kMailbox, items.map((e) => e.toJson()).toList());
   }
 
-  static Future<void> clearAll() async {
-    final sp = await SharedPreferences.getInstance();
-    await sp.remove(_kProfile);
-    await sp.remove(_kWallet);
-    await sp.remove(_kUserId);
-    await sp.remove(_kPending);
-    await sp.remove(_kIncoming);
-    await sp.remove(_kMailbox);
+  // Convenience helpers (used by UI pages)
+  static Future<void> addPending(MailRequest req) async {
+    final list = await loadPending();
+    await savePending([...list, req]);
+  }
+
+  static Future<void> removePending(String id) async {
+    final list = await loadPending();
+    await savePending(list.where((e) => e.id != id).toList());
+  }
+
+  static Future<void> addIncoming(MailRequest req) async {
+    final list = await loadIncoming();
+    await saveIncoming([...list, req]);
+  }
+
+  static Future<void> removeIncoming(String id) async {
+    final list = await loadIncoming();
+    await saveIncoming(list.where((e) => e.id != id).toList());
+  }
+
+  static Future<void> addMailbox(MailItem item) async {
+    final list = await loadMailbox();
+    await saveMailbox([...list, item]);
+  }
+
+  static Future<void> resetAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kProfile);
+    await prefs.remove(_kWallet);
+    await prefs.remove(_kPending);
+    await prefs.remove(_kIncoming);
+    await prefs.remove(_kMailbox);
+    await prefs.remove(_kUserId);
   }
 }
