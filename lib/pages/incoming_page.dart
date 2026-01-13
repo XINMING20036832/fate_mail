@@ -1,9 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/models.dart';
 import '../services/local_store.dart';
-import '../widgets/nebula_background.dart';
+import '../models/models.dart';
+import '../widgets/fate_scaffold.dart';
 
 class IncomingPage extends StatefulWidget {
   const IncomingPage({super.key});
@@ -13,7 +12,7 @@ class IncomingPage extends StatefulWidget {
 }
 
 class _IncomingPageState extends State<IncomingPage> {
-  List<MailRequest> _items = <MailRequest>[];
+  List<MailRequest> _items = [];
   bool _loading = true;
 
   @override
@@ -23,127 +22,95 @@ class _IncomingPageState extends State<IncomingPage> {
   }
 
   Future<void> _load() async {
-    final xs = await LocalStore.loadIncoming();
-    if (!mounted) return;
+    final list = await LocalStore.loadIncoming();
     setState(() {
-      _items = xs;
+      _items = list;
       _loading = false;
     });
   }
 
   Future<void> _accept(MailRequest r) async {
-    // move to mailbox: create a first mail from sender
-    final mailbox = await LocalStore.loadMailbox();
-    final now = DateTime.now().millisecondsSinceEpoch;
-    mailbox.add(
-      MailItem(
-        id: 'M-$now-${Random().nextInt(9999)}',
-        requestId: r.id,
-        fromUserId: r.fromUserId,
-        toUserId: r.toUserId,
-        createdAt: now,
-        body: '我也不知道为什么会点开这个应用。\n但看到“同一刻出生的人”这句话时，我突然有点想说话。\n\n${r.note}',
-      ),
-    );
-    await LocalStore.saveMailbox(mailbox);
+    final next = _items.map((e) => e.id == r.id
+        ? MailRequest(
+            id: e.id,
+            fromUserId: e.fromUserId,
+            toUserId: e.toUserId,
+            fateKey: e.fateKey,
+            status: 'accepted',
+            createdAt: e.createdAt,
+            templateState: e.templateState,
+            templatePace: e.templatePace,
+            extraLine: e.extraLine,
+          )
+        : e).toList();
+    await LocalStore.saveIncoming(next);
 
-    // remove from incoming
-    _items.removeWhere((e) => e.id == r.id);
-    await LocalStore.saveIncoming(_items);
+    // Add to mailbox
+    final mailbox = await LocalStore.loadMailbox();
+    final item = MailItem(
+      id: r.id,
+      peerFateKey: r.fateKey,
+      state: r.templateState,
+      pace: r.templatePace,
+      text: r.extraLine,
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    await LocalStore.saveMailbox([item, ...mailbox]);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已接受。信已投递到信箱。')));
-    // open thread
-    Navigator.pushNamed(context, '/thread', arguments: r.id).then((_) => _load());
+    setState(() => _items = next);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已接受：已放入信箱。')));
   }
 
   Future<void> _reject(MailRequest r) async {
-    _items.removeWhere((e) => e.id == r.id);
-    await LocalStore.saveIncoming(_items);
+    // Refund 1 stamp to sender in real backend; demo: refund to current user to show effect.
+    final w = await LocalStore.loadWallet();
+    await LocalStore.saveWallet(StampWallet(w.stamps + 1));
+
+    final next = _items.where((e) => e.id != r.id).toList();
+    await LocalStore.saveIncoming(next);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已拒绝。')));
-    _load();
+    setState(() => _items = next);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已拒绝（演示）：邮票已退回。')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return NebulaBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('我收到的请求')),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : SafeArea(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  children: [
-                    if (_items.isEmpty)
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text('暂时没有收到请求。', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75))),
-                        ),
-                      )
-                    else
-                      ..._items.map((r) {
-                        final dt = DateTime.fromMillisecondsSinceEpoch(r.createdAt);
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.mark_email_unread_outlined),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text('来自“另一个我”的请求', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-                                    ),
-                                    Text(DateFormat('MM-dd HH:mm').format(dt), style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.65))),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Text('对方状态：${r.mood}', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.78))),
-                                const SizedBox(height: 4),
-                                Text('对方希望的互动：${r.pace}', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.78))),
-                                const SizedBox(height: 10),
-                                Text('对方写道：${r.note}', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7), height: 1.4)),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed: () => _accept(r),
-                                        icon: const Icon(Icons.check_circle_outline),
-                                        label: const Text('接受'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: () => _reject(r),
-                                        icon: const Icon(Icons.close),
-                                        label: const Text('拒绝'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+    return FateScaffold(
+      title: '我收到的',
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: _items.length,
+              itemBuilder: (_, i) {
+                final r = _items[i];
+                final dt = DateTime.fromMillisecondsSinceEpoch(r.createdAt);
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('命运坐标：${r.fateKey}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        Text('时间：${DateFormat('yyyy-MM-dd HH:mm').format(dt)}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                        const SizedBox(height: 8),
+                        Text('状态：${r.status}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                        const SizedBox(height: 10),
+                        if (r.status == 'pending')
+                          Row(
+                            children: [
+                              Expanded(child: FilledButton(onPressed: () => _accept(r), child: const Text('接受并阅读'))),
+                              const SizedBox(width: 8),
+                              Expanded(child: OutlinedButton(onPressed: () => _reject(r), child: const Text('拒绝'))),
+                            ],
                           ),
-                        );
-                      }),
-                    const SizedBox(height: 10),
-                    Text(
-                      '提醒：双方默认不显示真实邮箱。只有当双方都愿意，才会开启进一步联系（正式版）。',
-                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-      ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

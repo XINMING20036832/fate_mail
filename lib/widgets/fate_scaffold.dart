@@ -1,44 +1,51 @@
-\
 import 'package:flutter/material.dart';
-import 'fate_background.dart';
+import '../core/theme.dart';
 
 class FateScaffold extends StatelessWidget {
   final String title;
-  final Widget body;
+  final Widget child;
   final List<Widget>? actions;
   final Widget? floatingActionButton;
-  final bool centerTitle;
+  final bool showBack;
 
   const FateScaffold({
     super.key,
     required this.title,
-    required this.body,
+    required this.child,
     this.actions,
     this.floatingActionButton,
-    this.centerTitle = true,
+    this.showBack = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return FateBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: centerTitle,
-          title: Text(title),
-          actions: actions,
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: body,
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        automaticallyImplyLeading: showBack,
+        title: Text(title),
+        actions: actions,
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              FateTheme.seed.withOpacity(0.35),
+              Colors.black,
+              FateTheme.seed.withOpacity(0.18),
+            ],
           ),
         ),
-        floatingActionButton: floatingActionButton,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: child,
+          ),
+        ),
       ),
+      floatingActionButton: floatingActionButton,
     );
   }
 }

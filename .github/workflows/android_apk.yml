@@ -1,4 +1,4 @@
-name: Build Android APK (debug)
+name: Android APK (debug)
 
 on:
   workflow_dispatch:
@@ -8,32 +8,41 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      JAVA_TOOL_OPTIONS: "-Xmx4g"
-      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dkotlin.daemon.jvm.options=-Xmx2g"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+          flutter-version: "stable"
           cache: true
 
-      - name: Flutter pub get
-        run: flutter pub get
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Prepare local.properties for CI
+        shell: bash
+        run: |
+          FLUTTER_BIN="$(which flutter)"
+          FLUTTER_SDK="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          echo "flutter.sdk=$FLUTTER_SDK" >> android/local.properties
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Gradle memory + AndroidX
+        shell: bash
+        run: |
+          GP="android/gradle.properties"
+          touch "$GP"
+          grep -q "org.gradle.jvmargs" "$GP" || echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" >> "$GP"
+          grep -q "android.useAndroidX" "$GP" || echo "android.useAndroidX=true" >> "$GP"
+          grep -q "android.enableJetifier" "$GP" || echo "android.enableJetifier=true" >> "$GP"
+
+      - run: flutter pub get
+      - run: flutter build apk --debug
+
+      - uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk

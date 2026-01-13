@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import '../models/models.dart';
 import '../services/local_store.dart';
-import '../widgets/nebula_background.dart';
+import '../widgets/fate_scaffold.dart';
 import '../widgets/rules_sheet.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -17,156 +17,188 @@ class _OnboardingPageState extends State<OnboardingPage> {
   DateTime? _birth;
   String _shichen = shichenList.first;
   final _emailCtrl = TextEditingController();
-  String _msg = '';
+
+  Profile? _profile;
   bool _loading = true;
+  bool _agree = false;
+  String _msg = '';
 
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    _init();
   }
 
-  Future<void> _bootstrap() async {
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _init() async {
+    await LocalStore.getOrCreateUserId();
     final p = await LocalStore.loadProfile();
-    if (!mounted) return;
+    setState(() {
+      _profile = p;
+      _loading = false;
+      if (p != null) {
+        _birth = DateTime.tryParse(p.birthDate);
+        _shichen = p.shichen.isNotEmpty ? p.shichen : shichenList.first;
+        _emailCtrl.text = p.email;
+        _agree = true;
+      }
+    });
     if (p != null) {
-      // already bound
-      Navigator.pushReplacementNamed(context, '/home');
-      return;
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
     }
-    setState(() => _loading = false);
   }
 
-  bool _validEmail(String s) {
-    final t = s.trim();
-    if (t.isEmpty) return false;
-    return RegExp(r'^\S+@\S+\.\S+\$').hasMatch(t);
-  }
-
-  Future<void> _pickBirth() async {
+  Future<void> _pickDate() async {
     final now = DateTime.now();
-    final init = _birth ?? DateTime(now.year - 20, 1, 1);
     final picked = await showDatePicker(
       context: context,
-      initialDate: init,
       firstDate: DateTime(1900, 1, 1),
       lastDate: DateTime(now.year, now.month, now.day),
-      builder: (ctx, child) {
-        return Theme(data: Theme.of(ctx).copyWith(dialogBackgroundColor: Colors.black87), child: child!);
-      },
+      initialDate: DateTime(1990, 1, 1),
     );
     if (picked != null) setState(() => _birth = picked);
   }
 
+  bool _isValidEmail(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return false;
+    // intentionally simple
+    return t.contains('@') && t.contains('.') && t.length >= 6;
+  }
+
   Future<void> _bind() async {
     setState(() => _msg = '');
+    if (!_agree) {
+      setState(() => _msg = '请先阅读并同意规则与隐私。');
+      return;
+    }
     if (_birth == null) {
-      setState(() => _msg = '请选择出生日期。');
+      setState(() => _msg = '请先选择生日。');
       return;
     }
-    if (!_validEmail(_emailCtrl.text)) {
-      setState(() => _msg = '请填写有效邮箱（用于收取必要通知；对方不可见）。');
+    final email = _emailCtrl.text.trim();
+    if (!_isValidEmail(email)) {
+      setState(() => _msg = '请填写有效邮箱（仅用于通知/找回，不对外展示）。');
       return;
     }
 
-    final birthStr = DateFormat('yyyy-MM-dd').format(_birth!);
     final now = DateTime.now().millisecondsSinceEpoch;
-    final p = Profile(
-      birthDate: birthStr,
-      shichen: _shichen,
-      email: _emailCtrl.text.trim(),
-      createdAt: now,
-      profileEditsUsed: 0,
-      lastEmailChangeAt: now,
-    );
-    await LocalStore.saveProfile(p);
-    await LocalStore.getOrCreateUserId();
-    await LocalStore.saveWallet(StampWallet(0));
-    await LocalStore.savePending(<MailRequest>[]);
-    await LocalStore.saveIncoming(<MailRequest>[]);
-    await LocalStore.saveMailbox(<MailItem>[]);
 
+    // Lock logic (birth/shichen): allow changes only within 24h from first bind.
+    final old = await LocalStore.loadProfile();
+    final createdAt = old?.createdAt ?? now;
+    final within24h = (now - createdAt) <= const Duration(hours: 24).inMilliseconds;
+
+    final locked = old == null ? false : (!within24h || old.locked);
+
+    if (old != null && locked) {
+      setState(() => _msg = '绑定已锁定（超过24小时或已锁定）。如需更换，请重装后再绑定。');
+      return;
+    }
+
+    final p = Profile(
+      birthDate: DateFormat('yyyy-MM-dd').format(_birth!),
+      shichen: _shichen,
+      email: email,
+      createdAt: createdAt,
+      emailUpdatedAt: old?.emailUpdatedAt ?? now,
+      locked: old == null ? false : true, // once updated within window -> lock
+    );
+
+    await LocalStore.saveProfile(p);
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/home');
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return NebulaBackground(
-      padding: true,
-      child: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('另一个我', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
-                    ),
-                    IconButton(
-                      onPressed: () => showRulesSheet(context),
-                      icon: const Icon(Icons.info_outline),
-                      tooltip: '规则',
-                    ),
-                  ],
-                ),
-                Text(
-                  '把一封信寄给 “同一刻出生的你”。\n不是社交，是一种被命运回声回应的感觉。',
-                  style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75), height: 1.5),
-                ),
-                const SizedBox(height: 18),
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text('绑定出生信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _pickBirth,
-                          icon: const Icon(Icons.cake_outlined),
-                          label: Text(_birth == null ? '选择出生日期' : DateFormat('yyyy-MM-dd').format(_birth!)),
-                        ),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: _shichen,
-                          items: shichenList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                          onChanged: (v) => setState(() => _shichen = v ?? shichenList.first),
-                          decoration: const InputDecoration(labelText: '出生时辰'),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: '你的邮箱（对方不可见）',
-                            hintText: '用于收取必要通知；24小时可改一次',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: _bind,
-                          child: const Text('确认绑定（24小时内可改一次，之后锁定）'),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(_msg, style: const TextStyle(color: Colors.red)),
-                      ],
-                    ),
+    return FateScaffold(
+      showBack: false,
+      title: '另一个我',
+      actions: [
+        IconButton(
+          onPressed: () => RulesSheet.show(context),
+          icon: const Icon(Icons.info_outline),
+          tooltip: '规则与隐私',
+        )
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text('只给同年同月同日同一时辰的人写信。', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 8),
+                  Text(
+                    '当你高兴、失落、无助、或者突然想留下些什么——\n'
+                    '把它寄给“另一个你”。\n'
+                    '对方接受之前，内容不会被看见。',
+                    style: TextStyle(height: 1.4),
                   ),
-                ),
-
-                const Spacer(),
-                Text(
-                  '提示：MVP 阶段不做公开广场，不做刷人，只做一对一的“命运信箱”。',
-                  style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.55)),
-                  textAlign: TextAlign.center,
-                ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ListTile(
+            title: const Text('生日'),
+            subtitle: Text(_birth == null ? '点击选择' : DateFormat('yyyy-MM-dd').format(_birth!)),
+            trailing: const Icon(Icons.calendar_month),
+            onTap: _pickDate,
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _shichen,
+            items: shichenList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            onChanged: (v) => setState(() => _shichen = v ?? shichenList.first),
+            decoration: const InputDecoration(labelText: '时辰（子丑寅卯…亥）'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: '你的邮箱（仅用于通知/找回）',
+              helperText: '不会对外展示；对方只会看到临时信箱（后端上线后生效）。',
+            ),
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => RulesSheet.show(context),
+            child: Row(
+              children: [
+                Checkbox(value: _agree, onChanged: (v) => setState(() => _agree = v ?? false)),
+                const Expanded(child: Text('我已阅读并同意《规则与隐私》')),
               ],
             ),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _bind,
+            child: const Text('确认绑定（24小时内可改一次，之后锁定）'),
+          ),
+          const SizedBox(height: 8),
+          Text(_msg, style: const TextStyle(color: Colors.red)),
+          const Spacer(),
+          const Text(
+            '提示：本版本为本地演示。你现在看到的界面与流程，会按最终上架体验设计。',
+            style: TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+        ],
+      ),
     );
   }
 }

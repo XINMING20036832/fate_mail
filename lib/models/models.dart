@@ -1,18 +1,18 @@
 class Profile {
   final String birthDate; // YYYY-MM-DD
   final String shichen;   // one of shichenList
-  final String email;     // user email for receipt (hidden to others)
+  final String email;     // private, not shown to other users
   final int createdAt;    // epoch ms
-  final int profileEditsUsed; // within first 24h
-  final int lastEmailChangeAt; // epoch ms
+  final int emailUpdatedAt; // epoch ms
+  final bool locked;        // lock birth/shichen after initial window
 
   Profile({
     required this.birthDate,
     required this.shichen,
     required this.email,
     required this.createdAt,
-    required this.profileEditsUsed,
-    required this.lastEmailChangeAt,
+    required this.emailUpdatedAt,
+    required this.locked,
   });
 
   Map<String, dynamic> toJson() => {
@@ -20,21 +20,24 @@ class Profile {
     'shichen': shichen,
     'email': email,
     'createdAt': createdAt,
-    'profileEditsUsed': profileEditsUsed,
-    'lastEmailChangeAt': lastEmailChangeAt,
+    'emailUpdatedAt': emailUpdatedAt,
+    'locked': locked,
   };
 
   static Profile? fromJson(Map<String, dynamic>? json) {
     if (json == null) return null;
+    final now = DateTime.now().millisecondsSinceEpoch;
     return Profile(
       birthDate: (json['birthDate'] ?? '').toString(),
       shichen: (json['shichen'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
-      createdAt: (json['createdAt'] ?? 0) as int,
-      profileEditsUsed: (json['profileEditsUsed'] ?? 0) as int,
-      lastEmailChangeAt: (json['lastEmailChangeAt'] ?? 0) as int,
+      createdAt: (json['createdAt'] ?? now) is int ? (json['createdAt'] ?? now) as int : now,
+      emailUpdatedAt: (json['emailUpdatedAt'] ?? now) is int ? (json['emailUpdatedAt'] ?? now) as int : now,
+      locked: (json['locked'] ?? false) as bool,
     );
   }
+
+  String get fateKey => '$birthDate|$shichen';
 }
 
 class StampWallet {
@@ -42,106 +45,90 @@ class StampWallet {
   StampWallet(this.stamps);
 
   Map<String, dynamic> toJson() => {'stamps': stamps};
-  static StampWallet fromJson(Map<String, dynamic>? json) => StampWallet((json?['stamps'] ?? 0) as int);
+  static StampWallet fromJson(Map<String, dynamic> json) =>
+      StampWallet((json['stamps'] ?? 0) as int);
 }
-
-enum RequestStatus { pending, incoming, accepted, rejected, canceled }
 
 class MailRequest {
   final String id;
   final String fromUserId;
   final String toUserId;
-  final String mood;     // 我现在的状态
-  final String pace;     // 我希望的互动节奏
+  final String fateKey; // birthDate + shichen
+  final String status;  // pending/accepted/rejected/expired
+  final int createdAt;  // epoch ms
+  final String templateState;
+  final String templatePace;
   final String extraLine;
-  final int createdAt;   // epoch ms
-  final String note;     // short note shown to receiver
-  final RequestStatus status;
 
   MailRequest({
     required this.id,
     required this.fromUserId,
     required this.toUserId,
-    required this.mood,
-    required this.pace,
-    required this.extraLine,
-    required this.createdAt,
-    required this.note,
+    required this.fateKey,
     required this.status,
+    required this.createdAt,
+    required this.templateState,
+    required this.templatePace,
+    required this.extraLine,
   });
-
-  MailRequest copyWith({RequestStatus? status}) => MailRequest(
-    id: id,
-    fromUserId: fromUserId,
-    toUserId: toUserId,
-    mood: mood,
-    pace: pace,
-    extraLine: extraLine,
-    createdAt: createdAt,
-    note: note,
-    status: status ?? this.status,
-  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'fromUserId': fromUserId,
     'toUserId': toUserId,
-    'mood': mood,
-    'pace': pace,
-    'extraLine': extraLine,
+    'fateKey': fateKey,
+    'status': status,
     'createdAt': createdAt,
-    'note': note,
-    'status': status.name,
+    'templateState': templateState,
+    'templatePace': templatePace,
+    'extraLine': extraLine,
   };
 
   static MailRequest fromJson(Map<String, dynamic> json) => MailRequest(
     id: (json['id'] ?? '').toString(),
     fromUserId: (json['fromUserId'] ?? '').toString(),
     toUserId: (json['toUserId'] ?? '').toString(),
-    mood: (json['mood'] ?? '').toString(),
-    pace: (json['pace'] ?? '').toString(),
+    fateKey: (json['fateKey'] ?? '').toString(),
+    status: (json['status'] ?? 'pending').toString(),
+    createdAt: (json['createdAt'] ?? 0) is int ? (json['createdAt'] ?? 0) as int : 0,
+    templateState: (json['templateState'] ?? '').toString(),
+    templatePace: (json['templatePace'] ?? '').toString(),
     extraLine: (json['extraLine'] ?? '').toString(),
-    createdAt: (json['createdAt'] ?? 0) as int,
-    note: (json['note'] ?? '').toString(),
-    status: RequestStatus.values.firstWhere(
-      (e) => e.name == (json['status'] ?? 'pending'),
-      orElse: () => RequestStatus.pending,
-    ),
   );
 }
 
 class MailItem {
   final String id;
-  final String requestId;
-  final String fromUserId;
-  final String toUserId;
-  final String body;
+  final String peerFateKey;
+  final String state;
+  final String pace;
+  final String text;
   final int createdAt; // epoch ms
 
   MailItem({
     required this.id,
-    required this.requestId,
-    required this.fromUserId,
-    required this.toUserId,
-    required this.body,
+    required this.peerFateKey,
+    required this.state,
+    required this.pace,
+    required this.text,
     required this.createdAt,
   });
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'requestId': requestId,
-    'fromUserId': fromUserId,
-    'toUserId': toUserId,
-    'body': body,
+    'peerFateKey': peerFateKey,
+    'state': state,
+    'pace': pace,
+    'text': text,
     'createdAt': createdAt,
   };
 
   static MailItem fromJson(Map<String, dynamic> json) => MailItem(
     id: (json['id'] ?? '').toString(),
-    requestId: (json['requestId'] ?? '').toString(),
-    fromUserId: (json['fromUserId'] ?? '').toString(),
-    toUserId: (json['toUserId'] ?? '').toString(),
-    body: (json['body'] ?? '').toString(),
-    createdAt: (json['createdAt'] ?? 0) as int,
+    peerFateKey: (json['peerFateKey'] ?? '').toString(),
+    state: (json['state'] ?? '').toString(),
+    pace: (json['pace'] ?? '').toString(),
+    text: (json['text'] ?? '').toString(),
+    createdAt: (json['createdAt'] ?? 0) is int ? (json['createdAt'] ?? 0) as int : 0,
   );
 }
