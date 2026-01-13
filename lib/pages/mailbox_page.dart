@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/local_store.dart';
+
+import '../core/utils.dart';
 import '../models/models.dart';
+import '../services/local_store.dart';
 import '../widgets/fate_background.dart';
 import '../widgets/fate_card.dart';
 
@@ -12,7 +14,8 @@ class MailboxPage extends StatefulWidget {
 }
 
 class _MailboxPageState extends State<MailboxPage> {
-  List<LetterRequest> _items = [];
+  final _ctrl = TextEditingController();
+  List<MailItem> _items = const [];
   bool _loading = true;
 
   @override
@@ -22,99 +25,146 @@ class _MailboxPageState extends State<MailboxPage> {
   }
 
   Future<void> _load() async {
-    final list = await LocalStore.loadMailbox();
+    final items = await LocalStore.loadMailbox();
     setState(() {
-      _items = list;
+      _items = items;
       _loading = false;
     });
   }
 
-  Future<void> _delete(LetterRequest req) async {
-    await LocalStore.removeMailbox(req.id);
+  Future<void> _send() async {
+    final t = _ctrl.text.trim();
+    if (t.isEmpty) return;
+
+    // Basic safety: block obvious external contact attempts.
+    if (containsExternalContact(t)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('为了双方匿名与安全：请不要在信里写手机号/邮箱/外部联系方式。')),
+      );
+      return;
+    }
+
+    final item = MailItem(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      direction: 'out',
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+      subject: '新的一封信',
+      body: t,
+    );
+
+    await LocalStore.addMailbox(item);
+    _ctrl.clear();
     await _load();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已删除')));
   }
 
-  void _open(LetterRequest req) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text(req.title),
-          content: SingleChildScrollView(child: Text(req.body)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
-          ],
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('信箱')),
-      body: FateBackground(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                FateCard(
-                  child: Text(
-                    '这里保存你收到并确认过的信。\n它们不会出现在任何搜索里，只属于你。',
-                    style: TextStyle(color: scheme.onSurface.withOpacity(0.75), height: 1.3),
+    return FateBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('来信箱'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                child: FateCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '匿名信件，不等于冷冰冰。\n你写下的每一句，都在等待同命的回声。',
+                        style: theme.textTheme.titleSmall?.copyWith(height: 1.25),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '提示：我们不读取/不保存正文内容到服务器；只做“临时转交”。在对方同意前，双方邮箱都保持隐藏。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withOpacity(0.72),
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (_items.isEmpty)
-                  const FateCard(child: Text('信箱还是空的。')),
-                for (final r in _items) ...[
-                  FateCard(
-                    child: InkWell(
-                      onTap: () => _open(r),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  r.title,
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: _items.length,
+                        itemBuilder: (context, i) {
+                          final m = _items[i];
+                          final isOut = m.direction == 'out';
+                          return Align(
+                            alignment: isOut ? Alignment.centerRight : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 420),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: FateCard(
+                                  pad: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isOut ? '你' : '对方',
+                                        style: theme.textTheme.labelLarge?.copyWith(
+                                          color: scheme.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        m.body,
+                                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              IconButton(
-                                tooltip: '删除',
-                                onPressed: () => _delete(r),
-                                icon: const Icon(Icons.delete_outline),
-                              )
-                            ],
-                          ),
-                          Text(
-                            r.body,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: scheme.onSurface.withOpacity(0.78), height: 1.25),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            r.createdAt,
-                            style: TextStyle(fontSize: 12, color: scheme.onSurface.withOpacity(0.6)),
-                          ),
-                        ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: const InputDecoration(
+                          labelText: '写下你想说的话…',
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                ]
-              ],
-            ),
+                    const SizedBox(width: 10),
+                    FilledButton(
+                      onPressed: _send,
+                      child: const Text('发送'),
+                    ),
+                  ],
+                ),
+              )
+            ],
           ),
         ),
       ),

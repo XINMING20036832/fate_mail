@@ -15,10 +15,6 @@ class FateTheme {
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
       ),
-      cardTheme: CardTheme(
-        elevation: 0.6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
@@ -54,11 +50,6 @@ class FateTheme {
         centerTitle: true,
         backgroundColor: Color(0xFF0B0F19),
         foregroundColor: Color(0xFFEAF0FF),
-      ),
-      cardTheme: CardTheme(
-        color: const Color(0xFF101828),
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

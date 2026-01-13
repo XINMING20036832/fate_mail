@@ -27,6 +27,24 @@ class Profile {
     required this.emailUpdatedAt,
   });
 
+  Profile copyWith({
+    String? birthDate,
+    String? shichen,
+    int? boundAt,
+    int? fateEditsLeft,
+    String? notifyEmail,
+    int? emailUpdatedAt,
+  }) {
+    return Profile(
+      birthDate: birthDate ?? this.birthDate,
+      shichen: shichen ?? this.shichen,
+      boundAt: boundAt ?? this.boundAt,
+      fateEditsLeft: fateEditsLeft ?? this.fateEditsLeft,
+      notifyEmail: notifyEmail ?? this.notifyEmail,
+      emailUpdatedAt: emailUpdatedAt ?? this.emailUpdatedAt,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'birthDate': birthDate,
         'shichen': shichen,
@@ -104,6 +122,30 @@ class MailRequest {
     required this.templatePace,
     required this.extraLine,
   });
+
+  MailRequest copyWith({
+    String? id,
+    String? fromUserId,
+    String? toUserId,
+    String? fateKey,
+    String? status,
+    int? createdAt,
+    String? templateState,
+    String? templatePace,
+    String? extraLine,
+  }) {
+    return MailRequest(
+      id: id ?? this.id,
+      fromUserId: fromUserId ?? this.fromUserId,
+      toUserId: toUserId ?? this.toUserId,
+      fateKey: fateKey ?? this.fateKey,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      templateState: templateState ?? this.templateState,
+      templatePace: templatePace ?? this.templatePace,
+      extraLine: extraLine ?? this.extraLine,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

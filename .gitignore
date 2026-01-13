@@ -50,3 +50,7 @@ local.properties
 app-debug.apk
 *.apk
 build/
+
+# build artifacts
+*.apk
+

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/local_store.dart';
+
 import '../models/models.dart';
-import '../core/utils.dart';
+import '../services/local_store.dart';
 import '../widgets/fate_background.dart';
 import '../widgets/fate_card.dart';
 
@@ -13,178 +13,180 @@ class ComposePage extends StatefulWidget {
 }
 
 class _ComposePageState extends State<ComposePage> {
-  final _tCtl = TextEditingController();
-  final _bCtl = TextEditingController();
-  StampWallet _wallet = const StampWallet(0);
-  bool _loading = true;
-  String _err = '';
+  final _formKey = GlobalKey<FormState>();
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  String _state = 'Tonight';
+  String _pace = 'Slow & warm';
+  String _extraLine = '';
 
-  Future<void> _load() async {
-    final w = await LocalStore.loadWallet();
-    setState(() {
-      _wallet = w;
-      _loading = false;
-    });
-  }
-
-  Future<void> _send() async {
-    final title = _tCtl.text.trim();
-    final body = _bCtl.text.trim();
-    if (title.isEmpty || body.isEmpty) {
-      setState(() => _err = '标题和正文都要写。');
-      return;
-    }
-    if (containsExternalContact(body) || containsExternalContact(title)) {
-      setState(() => _err = '为了保护双方隐私，信里不要写手机号/微信/邮箱等外部联系方式。');
-      return;
-    }
-    if (_wallet.stamps <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('没有邮票了，先去购买。')));
-      return;
-    }
-
-    // consume 1 stamp
-    final nextWallet = StampWallet(_wallet.stamps - 1);
-    await LocalStore.saveWallet(nextWallet);
-
-    final req = LetterRequest(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: title,
-      body: body,
-      createdAt: DateTime.now().toIso8601String(),
-      status: 'pending',
-    );
-    await LocalStore.addPending(req);
-
-    // Demo: also create a mirror request in inbox so user can test accept/reject.
-    final mirror = LetterRequest(
-      id: 'in_${req.id}',
-      title: title,
-      body: body,
-      createdAt: req.createdAt,
-      status: 'incoming',
-    );
-    await LocalStore.addIncoming(mirror);
-
-    if (!mounted) return;
-    setState(() {
-      _wallet = nextWallet;
-      _err = '';
-    });
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已投递到命运邮局（等待对方72小时内确认）')));
-  }
+  bool _sending = false;
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     final scheme = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('写给另一个我')),
+      appBar: AppBar(title: const Text('写一封给「另一个我」')),
       body: FateBackground(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                FateCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('这一封信，会被送到与你同年同月同日同一时辰的人。', style: t.titleMedium),
-                      const SizedBox(height: 6),
-                      Text(
-                        '微信是即时的，信是“等待”。\n'
-                        '当你把心事写成一封信，它就不再是随手一句话——它会变成一种力量。',
-                        style: TextStyle(color: scheme.onSurface.withOpacity(0.75), height: 1.3),
-                      ),
-                    ],
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            FateCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '你不是在写给陌生人。',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-                const SizedBox(height: 12),
-                FateCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text('邮票余额：${_wallet.stamps} 枚', style: const TextStyle(fontWeight: FontWeight.w800))),
-                          TextButton(
-                            onPressed: () => Navigator.pushNamed(context, '/wallet').then((_) => _load()),
-                            child: const Text('购买邮票'),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '发出一封信消耗 1 枚邮票。若对方拒绝或你撤回，邮票会退回。',
-                        style: TextStyle(fontSize: 12, color: scheme.onSurface.withOpacity(0.7)),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  Text(
+                    '你写给：和你同年同月同日同一时辰来到这世界的人。很多相似，不需要解释太多。',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(color: scheme.onSurface.withOpacity(0.78), height: 1.25),
                   ),
-                ),
-                const SizedBox(height: 12),
-                FateCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: _tCtl,
-                        decoration: const InputDecoration(
-                          labelText: '标题',
-                          hintText: '例如：今晚我有点撑不住了',
-                        ),
-                        maxLength: 30,
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _bCtl,
-                        decoration: const InputDecoration(
-                          labelText: '正文',
-                          hintText: '写下你此刻最想对“另一个我”说的话…',
-                        ),
-                        maxLines: 10,
-                        minLines: 8,
-                      ),
-                      const SizedBox(height: 8),
-                      if (_err.isNotEmpty)
-                        Text(_err, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed: _send,
-                        icon: const Icon(Icons.send),
-                        label: const Text('投递（消耗 1 枚邮票）'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '写作提示：\n'
-                  '1）先说“我现在在哪个阶段”\n'
-                  '2）再说“我最怕的是什么/最想要的是什么”\n'
-                  '3）最后留一句“你那边…好吗？”\n'
-                  '（不要写联系方式，保护双方。）',
-                  style: TextStyle(fontSize: 12, color: scheme.onSurface.withOpacity(0.75), height: 1.35),
-                ),
-                const SizedBox(height: 24),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            FateCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('写信模板', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 10),
+                    _drop(
+                      label: '此刻的你',
+                      value: _state,
+                      items: const ['Tonight', 'A little lost', 'Good news', 'I miss someone', 'I need a sign'],
+                      onChanged: (v) => setState(() => _state = v),
+                    ),
+                    const SizedBox(height: 10),
+                    _drop(
+                      label: '语气与节奏',
+                      value: _pace,
+                      items: const ['Slow & warm', 'Short & direct', 'Gentle & poetic', 'Serious & honest'],
+                      onChanged: (v) => setState(() => _pace = v),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: '加一句只属于你的话（可选）',
+                        hintText: '比如：今天我突然很想证明自己…',
+                      ),
+                      maxLength: 40,
+                      onChanged: (v) => _extraLine = v.trim(),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _sending ? null : () => _send(context),
+                            icon: _sending
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.send_rounded),
+                            label: const Text('投递（消耗 1 封邮票）'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '投递后，你的邮箱仍然隐藏。只有对方同意，你们才会解锁对话。邮票可退回待用。',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurface.withOpacity(0.68), height: 1.25),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _drop({
+    required String label,
+    required String value,
+    required List<String> items,
+    required void Function(String v) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: (v) {
+        if (v == null) return;
+        onChanged(v);
+      },
+    );
+  }
+
+  Future<void> _send(BuildContext context) async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _sending = true);
+    try {
+      final p = await LocalStore.loadProfile();
+      if (p == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('请先完成绑定：生日 + 时辰')));
+        return;
+      }
+      final wallet = await LocalStore.loadWallet();
+      if (wallet.stamps <= 0) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('邮票不足：先去“邮票”页购买')));
+        return;
+      }
+
+      final myId = await LocalStore.getOrCreateUserId();
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      final req = MailRequest(
+        id: '${now}_$myId',
+        fromUserId: myId,
+        toUserId: 'unknown',
+        fateKey: '${p.birthDate}_${p.shichen}',
+        status: 'pending',
+        createdAt: now,
+        templateState: _state,
+        templatePace: _pace,
+        extraLine: _extraLine,
+      );
+
+      await LocalStore.addPending(req);
+      await LocalStore.saveWallet(wallet.copyWith(stamps: wallet.stamps - 1));
+
+      // Demo: create a mirror incoming request so the app can be tested locally.
+      final mirror = req.copyWith(
+        id: '${now}_mirror',
+        fromUserId: 'mirror',
+        toUserId: myId,
+        status: 'incoming',
+      );
+      await LocalStore.addIncoming(mirror);
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已投递。去“待回应 / 收到的信”看看。')),
+      );
+      Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 }

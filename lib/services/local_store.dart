@@ -82,4 +82,40 @@ class LocalStore {
   static Future<void> saveMailbox(List<MailItem> items) async {
     await _saveList(_kMailbox, items.map((e) => e.toJson()).toList());
   }
+
+  // Convenience helpers (used by UI pages)
+  static Future<void> addPending(MailRequest req) async {
+    final list = await loadPending();
+    await savePending([...list, req]);
+  }
+
+  static Future<void> removePending(String id) async {
+    final list = await loadPending();
+    await savePending(list.where((e) => e.id != id).toList());
+  }
+
+  static Future<void> addIncoming(MailRequest req) async {
+    final list = await loadIncoming();
+    await saveIncoming([...list, req]);
+  }
+
+  static Future<void> removeIncoming(String id) async {
+    final list = await loadIncoming();
+    await saveIncoming(list.where((e) => e.id != id).toList());
+  }
+
+  static Future<void> addMailbox(MailItem item) async {
+    final list = await loadMailbox();
+    await saveMailbox([...list, item]);
+  }
+
+  static Future<void> resetAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kProfile);
+    await prefs.remove(_kWallet);
+    await prefs.remove(_kPending);
+    await prefs.remove(_kIncoming);
+    await prefs.remove(_kMailbox);
+    await prefs.remove(_kUserId);
+  }
 }
