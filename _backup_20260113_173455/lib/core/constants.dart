@@ -12,12 +12,3 @@ const List<String> shichenList = <String>[
   '戌时 (19:00-21:00)',
   '亥时 (21:00-23:00)',
 ];
-
-const int kEmailChangeCooldownMs = 24 * 60 * 60 * 1000; // 24h
-const int kProfileEditWindowMs = 24 * 60 * 60 * 1000;  // 24h
-const int kMaxProfileEditsInWindow = 1;
-
-const int kStampPriceSingle = 6; // 元
-const int kPackPrice1 = 6;       // 1封/1张
-const int kPackPrice3 = 15;      // 3封/3张
-const int kPackPrice10 = 30;     // 10封/10张

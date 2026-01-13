@@ -1,9 +1,8 @@
-\
 import 'package:flutter/material.dart';
-import '../services/local_store.dart';
+import '../core/constants.dart';
 import '../models/models.dart';
-import '../widgets/fate_scaffold.dart';
-import '../widgets/fate_card.dart';
+import '../services/local_store.dart';
+import '../widgets/nebula_background.dart';
 
 class WalletPage extends StatefulWidget {
   const WalletPage({super.key});
@@ -13,11 +12,15 @@ class WalletPage extends StatefulWidget {
 }
 
 class _WalletPageState extends State<WalletPage> {
-  StampWallet? _wallet;
+  StampWallet _wallet = StampWallet(0);
+  bool _loading = true;
 
-  int _packStamps = 3;
-  int _packPrice = 15;
-  int _qty = 1;
+  int _p1 = 0;
+  int _p3 = 0;
+  int _p10 = 0;
+
+  int get _totalStamps => _p1 * 1 + _p3 * 3 + _p10 * 10;
+  int get _totalPrice => _p1 * kPackPrice1 + _p3 * kPackPrice3 + _p10 * kPackPrice10;
 
   @override
   void initState() {
@@ -28,135 +31,169 @@ class _WalletPageState extends State<WalletPage> {
   Future<void> _load() async {
     final w = await LocalStore.loadWallet();
     if (!mounted) return;
-    setState(() => _wallet = w);
-  }
-
-  void _selectPack(int stamps, int price) {
     setState(() {
-      _packStamps = stamps;
-      _packPrice = price;
-      _qty = 1;
+      _wallet = w;
+      _loading = false;
     });
   }
 
-  int get _totalStamps => _packStamps * _qty;
-  int get _totalPrice => _packPrice * _qty;
-
-  Future<void> _buy() async {
-    if (_qty <= 0) return;
-    final w = await LocalStore.loadWallet();
-    final next = StampWallet((w?.stamps ?? 0) + _totalStamps);
-    await LocalStore.saveWallet(next);
+  Future<void> _applyPurchase() async {
+    if (_totalStamps <= 0) return;
+    setState(() => _loading = true);
+    final newWallet = StampWallet(_wallet.stamps + _totalStamps);
+    await LocalStore.saveWallet(newWallet);
     if (!mounted) return;
-    setState(() => _wallet = next);
+    setState(() {
+      _wallet = newWallet;
+      _p1 = 0;
+      _p3 = 0;
+      _p10 = 0;
+      _loading = false;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已增加 $_totalStamps 张邮票（模拟购买）')),
+      SnackBar(content: Text('已购买 $_totalStamps 张邮票（模拟）。')),
+    );
+  }
+
+  Widget _packTile({
+    required String title,
+    required String subtitle,
+    required int count,
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65))),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onMinus,
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+            Text('$count', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            IconButton(
+              onPressed: onPlus,
+              icon: const Icon(Icons.add_circle_outline),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final stamps = _wallet?.stamps ?? 0;
-
-    return FateScaffold(
-      title: '邮票',
-      body: ListView(
-        children: [
-          FateCard(
-            child: Row(
-              children: [
-                const Icon(Icons.local_post_office, size: 26),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('我的邮票：$stamps 张', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                ),
-                TextButton(
-                  onPressed: () => setState(() => _qty = 0),
-                  child: const Text('取消选择'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          FateCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('选择套餐', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                _packTile(stamps: 1, price: 6, selected: _packStamps == 1, onTap: () => _selectPack(1, 6)),
-                const SizedBox(height: 10),
-                _packTile(stamps: 3, price: 15, selected: _packStamps == 3, onTap: () => _selectPack(3, 15)),
-                const SizedBox(height: 10),
-                _packTile(stamps: 10, price: 30, selected: _packStamps == 10, onTap: () => _selectPack(10, 30)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          FateCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('数量', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                Row(
+    final theme = Theme.of(context);
+    return NebulaBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(title: const Text('邮票')),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                   children: [
-                    IconButton(
-                      onPressed: _qty <= 0 ? null : () => setState(() => _qty -= 1),
-                      icon: const Icon(Icons.remove_circle_outline),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('当前余额', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75))),
+                                  const SizedBox(height: 6),
+                                  Text('${_wallet.stamps}', style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
+                                  const SizedBox(height: 6),
+                                  Text('1封信 = 1张邮票（6元）', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.local_post_office, size: 34),
+                          ],
+                        ),
+                      ),
                     ),
-                    Text('$_qty', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                    IconButton(
-                      onPressed: () => setState(() => _qty += 1),
-                      icon: const Icon(Icons.add_circle_outline),
+                    const SizedBox(height: 12),
+                    const Text('选择购买套餐', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    _packTile(
+                      title: '6 元 · 1 封',
+                      subtitle: '适合先试一封',
+                      count: _p1,
+                      onMinus: () => setState(() => _p1 = (_p1 - 1).clamp(0, 99)),
+                      onPlus: () => setState(() => _p1 = (_p1 + 1).clamp(0, 99)),
                     ),
-                    const Spacer(),
-                    Text('共 $_totalStamps 张 / ￥$_totalPrice', style: TextStyle(color: Colors.white.withOpacity(0.85))),
+                    _packTile(
+                      title: '15 元 · 3 封',
+                      subtitle: '更划算，适合连续写',
+                      count: _p3,
+                      onMinus: () => setState(() => _p3 = (_p3 - 1).clamp(0, 99)),
+                      onPlus: () => setState(() => _p3 = (_p3 + 1).clamp(0, 99)),
+                    ),
+                    _packTile(
+                      title: '30 元 · 10 封',
+                      subtitle: '适合长期使用',
+                      count: _p10,
+                      onMinus: () => setState(() => _p10 = (_p10 - 1).clamp(0, 99)),
+                      onPlus: () => setState(() => _p10 = (_p10 + 1).clamp(0, 99)),
+                    ),
+                    const SizedBox(height: 10),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text('合计：$_totalStamps 张', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                ),
+                                Text('￥$_totalPrice', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: theme.colorScheme.primary)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: _totalStamps <= 0 ? null : _applyPurchase,
+                                    child: const Text('确认购买（MVP模拟）'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                OutlinedButton(
+                                  onPressed: () => setState(() { _p1 = 0; _p3 = 0; _p10 = 0; }),
+                                  child: const Text('清空'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '提示：正式版接入 Google Play Billing 后，服务器校验成功才会加邮票。\n未被接受/超时会退回邮票（正式版由后端定时任务处理）。',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: _qty <= 0 ? null : _buy,
-                  icon: const Icon(Icons.shopping_cart_checkout),
-                  label: const Text('确认购买（模拟）'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '说明：当前版本为 MVP，购买为模拟增加邮票。正式版可接入支付。',
-                  style: TextStyle(color: Colors.white.withOpacity(0.70)),
-                )
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _packTile({
-    required int stamps,
-    required int price,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.10) : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? Colors.white.withOpacity(0.22) : Colors.white.withOpacity(0.10)),
-        ),
-        child: Row(
-          children: [
-            Icon(selected ? Icons.check_circle : Icons.circle_outlined, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: Text('$stamps 张邮票', style: const TextStyle(fontWeight: FontWeight.w700))),
-            Text('￥$price', style: TextStyle(color: Colors.white.withOpacity(0.85))),
-          ],
-        ),
+              ),
       ),
     );
   }

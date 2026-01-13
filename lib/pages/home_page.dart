@@ -1,9 +1,8 @@
-\
 import 'package:flutter/material.dart';
-import '../services/local_store.dart';
 import '../models/models.dart';
-import '../widgets/fate_scaffold.dart';
-import '../widgets/fate_card.dart';
+import '../services/local_store.dart';
+import '../widgets/nebula_background.dart';
+import '../widgets/rules_sheet.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,7 +13,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Profile? _profile;
-  StampWallet? _wallet;
+  StampWallet _wallet = StampWallet(0);
+  int _pendingCount = 0;
+  int _incomingCount = 0;
+  bool _loading = true;
 
   @override
   void initState() {
@@ -25,179 +27,231 @@ class _HomePageState extends State<HomePage> {
   Future<void> _load() async {
     final p = await LocalStore.loadProfile();
     final w = await LocalStore.loadWallet();
+    final pending = await LocalStore.loadPending();
+    final incoming = await LocalStore.loadIncoming();
+
     if (!mounted) return;
     setState(() {
       _profile = p;
       _wallet = w;
+      _pendingCount = pending.where((e) => e.status == RequestStatus.pending).length;
+      _incomingCount = incoming.where((e) => e.status == RequestStatus.incoming).length;
+      _loading = false;
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final p = _profile;
-    final w = _wallet;
-
-    return FateScaffold(
-      title: '另一个我',
-      actions: [
-        IconButton(
-          tooltip: '规则',
-          onPressed: () => Navigator.pushNamed(context, '/rules'),
-          icon: const Icon(Icons.auto_awesome),
+  Widget _pill(String text, IconData icon, {VoidCallback? onTap}) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
-        IconButton(
-          tooltip: '设置',
-          onPressed: () => Navigator.pushNamed(context, '/settings').then((_) => _load()),
-          icon: const Icon(Icons.settings),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
         ),
-      ],
-      body: ListView(
-        children: [
-          FateCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('你的命运坐标', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        p == null ? '未绑定' : '${p.birthDate} · ${p.shichen}',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    if (w != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.white.withOpacity(0.10)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.local_post_office, size: 16),
-                            const SizedBox(width: 6),
-                            Text('${w.stamps}'),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '你写下的每一封信，都只会投递给“同年同月同日同一时辰”的那个人。',
-                  style: TextStyle(color: Colors.white.withOpacity(0.80)),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/compose').then((_) => _load()),
-                      icon: const Icon(Icons.edit),
-                      label: const Text('写一封'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/wallet').then((_) => _load()),
-                      icon: const Icon(Icons.shopping_bag),
-                      label: const Text('买邮票'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/profile').then((_) => _load()),
-                      icon: const Icon(Icons.person),
-                      label: Text(p == null ? '绑定坐标' : '改资料'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          FateCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('为什么不是微信？', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                Text(
-                  '因为你需要的不是“随手一句”，而是一封值得等待的信。\n'
-                  '当你高兴、失落、无助，或者只是想找一个懂你的人——你会更愿意把它写进信里。',
-                  style: TextStyle(color: Colors.white.withOpacity(0.80), height: 1.35),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/pending'),
-                        child: const Text('我在等待'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/incoming'),
-                        child: const Text('我收到的请求卡'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/mailbox'),
-                  child: const Text('我的信箱'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          FateCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('一句话就能上手', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                _step('1', '绑定你的命运坐标（出生日期 + 时辰）'),
-                _step('2', '买邮票：1 / 3 / 10 封'),
-                _step('3', '写信 → 进入等待（最多72小时）'),
-                _step('4', '对方接受后才能阅读；撤回/拒绝/超时会退邮票'),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/rules'),
-                  child: const Text('查看完整规则与隐私说明'),
-                )
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _step(String n, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(0.10)),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return NebulaBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('另一个我'),
+          actions: [
+            IconButton(
+              onPressed: () => showRulesSheet(context),
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: '规则与氛围',
             ),
-            child: Text(n, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.80), height: 1.25))),
-        ],
+            IconButton(
+              onPressed: () => Navigator.pushNamed(context, '/settings').then((_) => _load()),
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: '设置',
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SafeArea(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: [
+                    if (_profile == null)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('尚未绑定出生信息', style: TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 8),
+                              Text(
+                                '请先绑定出生日期与时辰，才能找到“另一个我”。',
+                                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75)),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton(
+                                onPressed: () => Navigator.pushReplacementNamed(context, '/'),
+                                child: const Text('去绑定'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('你的坐标', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  _pill('生日：${_profile!.birthDate}', Icons.cake_outlined),
+                                  _pill('时辰：${_profile!.shichen}', Icons.schedule),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                '同一刻出生的人，往往在“喜与痛”的节点上有相似的回声。\n你不需要解释自己太多。',
+                                style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.72), height: 1.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 14),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('邮票余额', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75))),
+                                  const SizedBox(height: 6),
+                                  Text('${_wallet.stamps}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+                                  const SizedBox(height: 8),
+                                  Text('1封信 = 1张邮票（6元）', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('等待中的决定', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.75))),
+                                  const SizedBox(height: 6),
+                                  Text('$_pendingCount', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+                                  const SizedBox(height: 8),
+                                  Text('同一时间只允许1个决定', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('现在做什么？', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () => Navigator.pushNamed(context, '/compose').then((_) => _load()),
+                                    icon: const Icon(Icons.edit_note),
+                                    label: const Text('写一封信'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => Navigator.pushNamed(context, '/wallet').then((_) => _load()),
+                                    icon: const Icon(Icons.local_post_office_outlined),
+                                    label: const Text('买邮票'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => Navigator.pushNamed(context, '/pending').then((_) => _load()),
+                                    icon: const Icon(Icons.hourglass_bottom),
+                                    label: Text('我在等($_pendingCount)'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => Navigator.pushNamed(context, '/incoming').then((_) => _load()),
+                                    icon: const Icon(Icons.mark_email_unread_outlined),
+                                    label: Text('我收到($_incomingCount)'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.pushNamed(context, '/mailbox').then((_) => _load()),
+                              icon: const Icon(Icons.all_inbox_outlined),
+                              label: const Text('打开信箱'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                    Text(
+                      '提示：这是一对一的信件模式。我们不展示公开广场，也不提供“刷人”。\n这样你写出的每一句话，都更像写给“另一个我”。',
+                      style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.6), height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
