@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class FateTheme {
   static const Color seed = Color(0xFF7C4DFF);
@@ -14,7 +14,7 @@ class FateTheme {
         elevation: 0,
         centerTitle: true,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cs.surface.withOpacity(0.85),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
