@@ -107,6 +107,8 @@ class MailRequest {
   final String fateKey; // birthDate + shichen
   final String status; // pending/accepted/rejected/expired
   final int createdAt; // epoch ms
+  final String? userId;
+  final String? direction;
   final String templateState;
   final String templatePace;
   final String extraLine;
@@ -179,6 +181,8 @@ class MailItem {
   final String toUserId;
   final String body;
   final int createdAt; // epoch ms
+  final String? userId;
+  final String? direction;
 
   const MailItem({
     required this.id,
@@ -187,6 +191,8 @@ class MailItem {
     required this.toUserId,
     required this.body,
     required this.createdAt,
+    this.userId,
+    this.direction,
   });
 
   Map<String, dynamic> toJson() => {
@@ -196,6 +202,8 @@ class MailItem {
         'toUserId': toUserId,
         'body': body,
         'createdAt': createdAt,
+        if (userId != null) 'userId': userId,
+        if (direction != null) 'direction': direction,
       };
 
   static MailItem fromJson(Map<String, dynamic> json) => MailItem(
@@ -205,5 +213,7 @@ class MailItem {
         toUserId: (json['toUserId'] ?? '').toString(),
         body: (json['body'] ?? '').toString(),
         createdAt: (json['createdAt'] ?? 0) as int,
+        userId: json['userId']?.toString(),
+        direction: json['direction']?.toString(),
       );
 }
