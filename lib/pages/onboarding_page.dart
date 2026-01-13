@@ -101,8 +101,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 Text('另一个我', style: t.headlineSmall),
                 const SizedBox(height: 8),
                 Text(
-                  '同年同月同日、同一时辰的人，
-可能在某些拐点里拥有相似的心事。',
+                  '''同年同月同日、同一时辰的人，
+可能在某些拐点里拥有相似的心事。''',
                   style: TextStyle(color: scheme.onSurface.withOpacity(0.85), height: 1.3),
                 ),
                 const SizedBox(height: 14),

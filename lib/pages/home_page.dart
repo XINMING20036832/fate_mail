@@ -92,8 +92,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '你写的是心事，不是社交。
-当你需要一个“能懂你”的回声时，它会出现。',
+                        '''你写的是心事，不是社交。
+当你需要一个“能懂你”的回声时，它会出现。''',
                         style: TextStyle(color: scheme.onSurface.withOpacity(0.78), height: 1.25),
                       ),
                     ],
