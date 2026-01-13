@@ -54,3 +54,7 @@ build/
 # build artifacts
 *.apk
 
+
+# build artifacts
+*.apk
+
